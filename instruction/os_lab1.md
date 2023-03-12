@@ -69,7 +69,7 @@ typedef struct {
         Elf32_Word sh_link;      /* Section link */
         Elf32_Word sh_info;      /* Section extra info */
         Elf32_Word sh_addralign; /* Section alignment */
-        Elf32_Word sh_entsize;   /* Section entry size */
+        Elf32_Word sh_entsize;   /* 节头表表项大小*/
 } Elf32_Shdr;
 ```
 
@@ -124,10 +124,17 @@ int readelf(const void *binary, size_t size) {
 ```
 
 学完了上面的ELF初步理论，会发现我们要完成的任务是很简单的：
-1.获取节头表地址：即 节头表地址=ELF头地址+节头表偏移 `sh_table = binary + ehdr->e_shoff`
+
+
+1.获取节头表地址：即 节头表地址=ELF头地址+节头表偏移动`sh_table = binary + ehdr->e_shoff`
+
 2.获取节头表项数：即ehdr结构体中的e_shnum成员
+
 3.获取节头表表项大小：即ehdr结构体中的e_shentsize成员
-4.按地址顺序输出每一节的节地址，注意**循环增加的变量**是const void*类型的地址值，按字节寻址，因此每轮的**循环增量**是节头表表项大小
+
+4.按地址顺序输出每一节的节地址，注意**循环增加的变量**是const void*类型的地址值，表示一个表项的地址，按字节寻址，因此每轮的**循环增量**是节头表表项大小
+
+>第四点注意节头表表项大小和节大小的区别。
 
 综上，给出两个部分填空代码：
 ```c
@@ -143,6 +150,9 @@ addr = shdr -> sh_addr;
 sh_table += sh_entry_size;
 printf("%d:0x%x\n", i, addr);
 ```
+
+保存退出，在目录下执行make命令，得到输出结果与执行readelf -S hello的节头表内容进行比对，发现地址一致。
+ 
 ***
 continuing to update...
 
