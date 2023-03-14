@@ -14,6 +14,7 @@ img目录是md文档附带图片
 目录树如下（updating）：
 
 ```bash
+$ tree
 .
 |-- README.md
 |-- guidebook
@@ -22,11 +23,13 @@ img目录是md文档附带图片
 |   |-- ELF.png
 |   |-- git-2(1).jpg
 |   |-- git3.jpg
-|   `-- lab0.png
+|   |-- lab0.png
+|   `-- mips\320\351\304\342\265\330\326\267\277\325\274\344.png
 |-- instruction
 |   `-- os_lab1.md
 `-- reports
     `-- os_lab0.md
 
-4 directories, 8 files
+4 directories, 9 files
+
 ```
