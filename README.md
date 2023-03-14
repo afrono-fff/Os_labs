@@ -3,11 +3,11 @@
 
 之后也许学业繁忙就停更了呢...尽量坚持吧。
 
-report目录下为实验报告
+instruction目录下为题解，尽量写的os小白能懂（因为本身就是os小白写的。。。）
 
-instruction目录下为题解
+report目录下为实验报告，作业提交用，用处不大
 
-guidebook目录下为指导书
+guidebook目录下为指导书，谜语书我来翻译
 
 img目录是md文档附带图片
 
