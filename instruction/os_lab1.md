@@ -3,6 +3,9 @@
 ***
 ### 知识点一： ELF文件
 #### 知识点理解
+
+<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析)）
+
  **ELF**(Executable and Linkable Format)是一种文件格式，看名字就知道是可执行文件和可链接文件的格式，关于ELF格式的详细介绍移步指导书或者stfw。  
 
  一个还行的[ELF文件初步讲解](https://blog.csdn.net/daide2012/article/details/73065204)
@@ -74,7 +77,7 @@ typedef struct {
 } Elf32_Shdr;
 ```
 
-#### 题目解析
+#### 题目解析（1.1）
 >指导书exercise1.1题目描述：
 
 >阅读 tools/readelf 目录下的 elf.h、readelf.c 和 main.c 文件，并补全readelf.c 中缺少的代码。readelf 函数需要输出 ELF 文件中所有节头中的地址信息，对于每个节头，输出格式为"%d:0x%x\n"，其中的 %d 和 %x 分别代表序号和地址。正确完成 readelf.c 之后,在 tools/readelf 目录下执行 make 命令，即可生成可执行文件readelf，它接受文件名作为参数，对 ELF 文件进行解析。可以执行 make hello生成测试用的 ELF 文件 hello，然后运行 ./readelf hello 来测试 readelf。 
@@ -124,7 +127,7 @@ int readelf(const void *binary, size_t size) {
 }
 ```
 
-学完了上面的ELF初步理论，会发现我们要完成的任务是很简单的：
+学完了上面的ELF初步知识，会发现我们要完成的任务是很简单的：
 
 
 1.获取节头表地址：即 节头表地址=ELF头地址+节头表偏移动`sh_table = binary + ehdr->e_shoff`
@@ -156,6 +159,9 @@ printf("%d:0x%x\n", i, addr);
  
 ### 知识点二： MIPS内存布局和内核装载
 #### 知识点理解
+
+<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析12-13)）
+
 ##### （一）MIPS内存布局和内存装载的位置
 由计组的知识我们知道，程序中使用的地址和真正访存的地址是不同的，前者是虚拟地址，后者是物理地址，由虚拟地址到物理地址的转换是由处理器中的硬件MMU(Memory Management Unit)来完成的，而MMU是受操作系统控制的（似乎又回到了内核装载的鸡生蛋问题）。对于32位处理器而言，其虚拟地址空间一般为4GB，布局如图：
 ![mips_vertual_addr](/img/mips%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4.png)
@@ -192,7 +198,28 @@ SECTIONS
 
 这两个部分结合到一起，就是第二题需要做的事情：将内核调整到内存空间中的kseg0。
 
-#### 题目解析
+##### （三）内核入口
+
+Makefile文件大致结构：
+
+首先找到第一个目标：all，其依赖文件为`$(targets)`，找到变量`$(targets)`的定义语句：`targets := $(mos-elf)`，继续顺藤摸瓜找
+`$(mos_elf)`的定义语句：`mos_elf := $(target_dir)/mos`，`$(target_dir) := target`，翻译一下就是，`all:target/mos`，整个项目的依赖文件就是内核mos的ELF可执行文件。
+
+进一步细看内核的依赖和命令：
+```Makefile
+ $(mos_elf): $(modules) $(target_dir)
+        $(LD) $(LDFLAGS) -o $(mos_elf) -N -T $(link_script) $(objects)
+```
+寻找命令中的各变量，容易发现在Makefile第45 46行：
+```Makefile
+ include mk/tests.mk mk/profiles.mk
+ export CC CFLAGS LD LDFLAGS lab
+```
+在相应文件中可以找到`$(LD)`的定义`mips-linux-gnu-ld`：这是一条交叉编译工具的链接命令，上面提到，使用`-T`选项可以指定使用的链接脚本，这条命令指定了我们下面需要修改的`kernel.lds`链接脚本。打开链接脚本，第九行的`ENTRY(_start)`给出了程序的入口地址。
+
+关于这一点，指导书给出了说明：关于链接后的程序从何处开始执行。程序执行的第一条指令的地址称为入口地址（entrypoint）。我们的实验就在 kernel.lds 中通过 ENTRY(_start) 来设置程序入口为_start。
+
+#### 题目解析(1.2&1.3)
 
 >指导书exercise1.2题目描述：
 
@@ -207,10 +234,6 @@ OUTPUT_ARCH(mips)
 
 /*
  * 程序入口起点设置为 _start
- * 关于这一点，指导书给出了说明：
- * 关于链接后的程序从何处开始执行。
- * 程序执行的第一条指令的地址称为入口地址（entrypoint）。
- * 我们的实验就在 kernel.lds 中通过 ENTRY(_start) 来设置程序入口为_start。
  */
 ENTRY(_start)
 
@@ -288,10 +311,295 @@ SECTIONS {
 .data : { *(.text) }
 .bss : { *(.bss) }
 ```
+>指导书exercise1.3题目描述：
 
-***
-continuing to update...
+>完成 init/start.S 中空缺的部分。设置栈指针，跳转到 mips_init 函数。执行 gxemul -E testmips -C R3000 -M 64 target/mos 运行仿真，其中 target/mos是我们构建生成的内核 ELF 镜像文件的路径。在我们的实验中，也可以使用命令 make run 来运行 GXemul，或使用命令 make dbg在调试模式下运行 GXemul。
 
+给出的代码框架：
+```c
+#include <asm/asm.h>
+#include <mmu.h>
+
+.text
+EXPORT(_start)
+.set at
+.set reorder
+        /* disable interrupts */
+        mtc0    zero, CP0_STATUS
+
+        /* hint: you can reference the memory layout in include/mmu.h */
+        /* set up the kernel stack */
+        /* Exercise 1.3: Your code here. (1/2) */
+
+
+        /* jump to mips_init */
+        /* Exercise 1.3: Your code here. (2/2) */
+
+```
+
+两个任务：
+1.将sp寄存器设置到内存栈空间上（mips汇编`la` 或`li` 命令）
+2.跳转到mips_init函数（mips汇编`j`命令）
+
+给出需要补全的代码：
+```c
+#1
+la sp, 0x80400000
+#2
+j mips_init
+```
+
+### 知识点三：实战printk
+
+<font color=grey>（点击直接跳到[题目解析](#题目解析14)）</font>
+
+这个部分我们先分析一下lab1分支下的代码结构。
+
+1.首先是分支目录下的几个非目录文件：
+
+* **`Makefile`** 构建内核的总Makefile文件，前面我们已经大致分析过
+
+* **`kernel.lds`** Linker Script链接脚本，前面我们用来控制链接和装载mos_elf相应节在内存中的位置
+
+* **`include.mk`** Makefile里面一些用到的变量（如`$(CC)` `$(LD)`）在这里进行了定义
+
+2.再看比较熟悉的目录：
+
+* **`target`** mos可执行文件所在目录，也就是执行`make`命令后生成的目标文件
+
+* **`tools`** 工具目录，例如我们第一题完成的`readelf`
+
+* **`init`** 顾名思义，是和内核初始化有关的目录。进入目录，发现Makefile构建的目标`init.o`和`start.o`，不难猜出这就是和初始化有关的目标文件。`start.o`的依赖文件`start.S`正是第三题中补全过的汇编文件，它是整个内核的程序入口。而init.c中的`mips_init()`函数就是`start.S`中我们填写的`j`指令跳转的函数了。
+
+3.最后逐个分析其他目录：
+
+* **`kern`** 先看其Makefile，总目标是`include.mk`中定义的三个目标文件`console.o` `printk.o` `panic.o`，我们可以从其依赖文件`printk.c`和`console.c`尝试阅读，当然，这里暂时读不懂也无大碍，介绍完目录后我们再来分析这些`.c`文件中函数调用关系
+
+* **`lib`** 库目录，Makefile的目标是`elfloader.o` `print.o` `string.o`，大致猜测这是一些库函数的实现。
+
+* **`mk`** 内含两个暂时用不着细看的`.mk`文件
+
+现在着眼于`printk.c`，分析相关c文件中的函数调用。
+
+在`printk.c`文件中，我们找到`printk`函数所在处：
+```c
+ 1 void printk(const char *fmt, ...) {
+ 2        va_list ap;
+ 3        va_start(ap, fmt);
+ 4        vprintfmt(outputk, NULL, fmt, ap);
+ 5        va_end(ap);
+ 6 }
+```
+这是一个**变长参数**的函数。我们暂时不考虑变长参数的代码细节，看到第3、4行，显然它对可变参数做了初步处理然后传给了这个`vprintfmt()`函数。也就是说，`printk()`函数中没有实现其功能的逻辑代码，而是调用了这个`vprintfmt`函数来实现逻辑代码。
+
+那么我们来到包含这个函数的文件中（找不到可以使用grep -r在目录下递归寻找字符串），发现在`lib`目录中的`print.c`文件中。找到`vprintfmt`函数中和输出有关的部分，发现它实际上调用了`print_num`等函数，进一步找到`print_num`等函数，发现这些函数的参数表中都有一个`out`函数，实际输出也是由`out`函数来完成的。
+
+那么，回到`kern/prink.c`调用`vprintfmt`处，发现这个传入的函数叫做`outputk`，其定义就在`printk.c`上方。这个函数又调用了一个名为`printcharc`的函数。再次查找，发现这个函数原型在`kern/console.c`中定义（如下）。至此，我们从上层至下层顺藤摸瓜，终于找到了`prink`函数的底层原理：往控制台输出字符，原来就是往内存中的某一块位置放置字符。
+
+```c
+//console.c 
+//只给出了printcharc函数代码
+#include <drivers/dev_cons.h>
+#include <mmu.h>
+
+void printcharc(char ch) {
+        *((volatile char *)(KSEG1 + DEV_CONS_ADDRESS + DEV_CONS_PUTGETCHAR)) = ch; 
+        //往内存中某块位置放了一个字符ch，就达到了向控制台输出的目的
+}
+```
+
+这些代码框架基本已经为我们搭建好，最后一题只需要补全`vprintfmt`中的一点格式化输出的逻辑即可。
+
+#### 题目解析（1.4）
+
+>指导书exercise1.4题目描述：
+
+>阅读相关代码和下面对于函数规格的说明，补全 lib/print.c 中 vprintfmt()函数中两处缺失的部分来实现字符输出。第一处缺失部分：找到% 并分析输出格式; 第二处缺失部分：取出参数，输出格式串为 %[flags][width][length]<specifier> 的情况。具体格式详见printk 格式具体说明。
+
+`vprintfmt`函数代码框架：
+
+```c
+void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) {
+        char c;
+        const char *s;
+        long num;
+
+        int width;
+        int long_flag; // 输出为long则为1，否则int，为0
+        int neg_flag;  // 输出是负数
+        int ladjust;   // 输出是左对齐的则为1（width>输出长度时默认是右对齐）
+        char padc;     // width大于输出长度时空格填充字符（默认为空格）
+
+        for (;;) {
+                /* scan for the next '%' */
+                /* Exercise 1.4: Your code here. (1/8) */
+                
+                /* flush the string found so far */
+                /* Exercise 1.4: Your code here. (2/8) */
+
+                /* check "are we hitting the end?" */
+                /* Exercise 1.4: Your code here. (3/8) */
+
+                /* we found a '%' */
+                /* Exercise 1.4: Your code here. (4/8) */
+
+                /* check format flag */
+                /* Exercise 1.4: Your code here. (5/8) */
+                
+                /* get width */
+                /* Exercise 1.4: Your code here. (6/8) */
+                
+                /* check for long */
+                /* Exercise 1.4: Your code here. (7/8) */
+                
+                neg_flag = 0;
+                switch (*fmt) {
+                case 'b':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+                        print_num(out, data, num, 2, 0, width, ladjust, padc, 0);
+                        break;
+
+                case 'd':
+                case 'D':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+
+                        /*
+                         * Refer to other parts (case 'b', case 'o', etc.) and func 'print_num' to
+                         * complete this part. Think the differences between case 'd' and the
+                         * others. (hint: 'neg_flag').
+                         */
+                        /* Exercise 1.4: Your code here. (8/8) */
+                        
+                        break;
+
+                case 'o':
+                case 'O':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+                        print_num(out, data, num, 8, 0, width, ladjust, padc, 0);
+                        break;
+
+                case 'u':
+                case 'U':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+                        print_num(out, data, num, 10, 0, width, ladjust, padc, 0);
+                        break;
+
+                case 'x':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+                        print_num(out, data, num, 16, 0, width, ladjust, padc, 0);
+                        break;
+
+                case 'X':
+                        if (long_flag) {
+                                num = va_arg(ap, long int);
+                        } else {
+                                num = va_arg(ap, int);
+                        }
+                        print_num(out, data, num, 16, 0, width, ladjust, padc, 1);
+                        break;
+
+                case 'c':
+                        c = (char)va_arg(ap, int);
+                        print_char(out, data, c, width, ladjust);
+                        break;
+
+                case 's':
+                        s = (char *)va_arg(ap, char *);
+                        print_str(out, data, s, width, ladjust);
+                        break;
+
+                case '\0':
+                        fmt--;
+                        break;
+
+                default:
+                        /* output this char as it is */
+                        out(data, fmt, 1);
+                }
+                fmt++;
+        }
+}
+```
+
+基本逻辑也很简单：
+
+非格式字符由`switch-case`语句之前的逻辑来控制，注意没有到达格式字符是不会进入`case`语块的，**不要被`case '\0'`和`default`中的语句误导**。遇到`'%'`后，需要输出格式字符，这个时候才能交由`switch-case`语句来控制输出逻辑。至于格式输出的实现细节不需要我们关注，因此工作难度也就大大降低了。
+
+第八处补全实际上就是要我们来考虑负数情况的输出，这里很容易出现测试的时候发现本来应该是个正常的负数，自己却输出了一个很大的正数，不过学过计组的我们一看就知道这是因为负数直接用补码传入`print_num`函数，而它却不认识补码（完全按二进制位处理的），我们只能手动转换一次，把负数转换成其绝对值，然后由`print_num`等函数在判断是负数的语块中给它前面补个负号。这也是变量`neg_flag`的必须性。
+
+下面是参考代码：
+
+```c
+//1
+if(*fmt != '%' && *fmt != '\0'){ //既未结束也不是%
+        out(data,fmt,1);
+        fmt ++;
+        continue;
+}
+//2
+
+//3
+if(*fmt == '\0'){
+        fmt --;
+        break;
+}
+//4
+if(*fmt == '%'){
+        fmt ++;
+}
+//5
+ladjust = 0;
+padc = ' ';
+if(*fmt == '-'){
+        ladjust = 1;
+        fmt ++;
+}else if(*fmt == '0'){
+        padc = '0';
+        fmt ++;
+}
+//6
+width = 0;
+while(*fmt >= '0' && *fmt <= '9'){
+        width = width * 10 + (*fmt-48);
+        fmt ++;
+}
+//7
+long_flag = 0;
+if(*fmt == 'l'){
+        long_flag = 1;
+        fmt ++;
+}
+//8
+if(num < 0){
+        num --;
+        num = ~num;
+        neg_flag = 1;
+}
+print_num(out, data, num, 10, neg_flag, width, ladjust, padc, 0);
+```
+第二处笔者提交时就空着，猜测和缓冲区有关，但是想不出缺少了它有什么逻辑漏洞，而且测评也过了。后续弄清楚后笔者会回来详细解释。
+
+至此lab1全部题解和相应知识点结束了，加油。
 
 
 
