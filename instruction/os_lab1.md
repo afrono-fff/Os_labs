@@ -4,7 +4,7 @@
 ### 知识点一： ELF文件
 #### 知识点理解
 
-<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析)）
+<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析11)）
 
  **ELF**(Executable and Linkable Format)是一种文件格式，看名字就知道是可执行文件和可链接文件的格式，关于ELF格式的详细介绍移步指导书或者stfw。  
 
@@ -160,7 +160,7 @@ printf("%d:0x%x\n", i, addr);
 ### 知识点二： MIPS内存布局和内核装载
 #### 知识点理解
 
-<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析12-13)）
+<font color=grey>（如果这部分已经理解，可以直接点击跳到</font>[题目部分](#题目解析1213)）
 
 ##### （一）MIPS内存布局和内存装载的位置
 由计组的知识我们知道，程序中使用的地址和真正访存的地址是不同的，前者是虚拟地址，后者是物理地址，由虚拟地址到物理地址的转换是由处理器中的硬件MMU(Memory Management Unit)来完成的，而MMU是受操作系统控制的（似乎又回到了内核装载的鸡生蛋问题）。对于32位处理器而言，其虚拟地址空间一般为4GB，布局如图：
@@ -324,15 +324,15 @@ SECTIONS {
 EXPORT(_start)
 .set at
 .set reorder
-        /* disable interrupts */
+        /* 禁止外部中断 */
         mtc0    zero, CP0_STATUS
 
-        /* hint: you can reference the memory layout in include/mmu.h */
-        /* set up the kernel stack */
+        /* hint: 可以参考include/mmu.h中的内存布局 */
+        /* 设置内核栈指针 */
         /* Exercise 1.3: Your code here. (1/2) */
 
 
-        /* jump to mips_init */
+        /* 跳转到mips_init */
         /* Exercise 1.3: Your code here. (2/2) */
 
 ```
@@ -392,9 +392,9 @@ j mips_init
 ```
 这是一个**变长参数**的函数。我们暂时不考虑变长参数的代码细节，看到第3、4行，显然它对可变参数做了初步处理然后传给了这个`vprintfmt()`函数。也就是说，`printk()`函数中没有实现其功能的逻辑代码，而是调用了这个`vprintfmt`函数来实现逻辑代码。
 
-那么我们来到包含这个函数的文件中（找不到可以使用grep -r在目录下递归寻找字符串），发现在`lib`目录中的`print.c`文件中。找到`vprintfmt`函数中和输出有关的部分，发现它实际上调用了`print_num`等函数，进一步找到`print_num`等函数，发现这些函数的参数表中都有一个`out`函数，实际输出也是由`out`函数来完成的。
+那么我们来到包含这个函数的文件中（找不到可以使用grep -r在目录下递归寻找字符串），发现在`lib`目录中的`print.c`文件中。找到`vprintfmt`函数中和输出有关的部分，发现它实际上调用了`print_num`等函数，进一步找到`print_num`等函数，发现这些函数的参数表中第一个参数都是一个叫`out`的函数，实际输出也是由`out`函数来完成的。
 
-那么，回到`kern/prink.c`调用`vprintfmt`处，发现这个传入的函数叫做`outputk`，其定义就在`printk.c`上方。这个函数又调用了一个名为`printcharc`的函数。再次查找，发现这个函数原型在`kern/console.c`中定义（如下）。至此，我们从上层至下层顺藤摸瓜，终于找到了`prink`函数的底层原理：往控制台输出字符，原来就是往内存中的某一块位置放置字符。
+那么，回到`kern/prink.c`调用`vprintfmt`处，发现这个传入`'out'`处的函数叫做`outputk`，其定义就在`printk.c`上方。这个`outputk`函数又调用了一个名为`printcharc`的函数。再次查找，发现这个函数原型在`kern/console.c`中定义（如下）。至此，我们从上层至下层顺藤摸瓜，终于找到了`prink`函数的底层原理：往控制台输出字符，原来最终就是这个`printcharc`往内存中的某一块位置放置字符。
 
 ```c
 //console.c 
@@ -543,7 +543,7 @@ void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) {
 
 基本逻辑也很简单：
 
-非格式字符由`switch-case`语句之前的逻辑来控制，注意没有到达格式字符是不会进入`case`语块的，**不要被`case '\0'`和`default`中的语句误导**。遇到`'%'`后，需要输出格式字符，这个时候才能交由`switch-case`语句来控制输出逻辑。至于格式输出的实现细节不需要我们关注，因此工作难度也就大大降低了。
+非格式字符由`switch-case`语句之前的逻辑来控制，注意没有到达格式字符（`'%'`后的部分）是不会进入`case`语块的，**不要被`case '\0'`和`default`中的语句误导**。遇到`'%'`后，需要输出格式字符，这个时候才能交由`switch-case`语句来控制输出逻辑。至于格式输出的实现细节不需要我们关注，因此工作难度也就大大降低了。
 
 第八处补全实际上就是要我们来考虑负数情况的输出，这里很容易出现测试的时候发现本来应该是个正常的负数，自己却输出了一个很大的正数，不过学过计组的我们一看就知道这是因为负数直接用补码传入`print_num`函数，而它却不认识补码（完全按二进制位处理的），我们只能手动转换一次，把负数转换成其绝对值，然后由`print_num`等函数在判断是负数的语块中给它前面补个负号。这也是变量`neg_flag`的必须性。
 
