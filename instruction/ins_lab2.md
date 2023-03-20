@@ -25,11 +25,34 @@ lab2实现了mos操作系统的内存管理。
 
 在lab1题解中我们提到，启动跳转到的`mips_init`函数会在不同的lab中被替换，以实现不同的评测需求。看`test`目录中`lab2_1`下的`init.c`文件中的`mips-init()`函数，可以首先调用了`mips_detect_memory()`，`mips_vm_init()`，`page_init()`三个函数，也就是说，内核启动跳转到`mips-init()`函数后，首先就执行了内存管理初始化的相关函数。我们从这里开始。
 
-首先，执行`mips_detect_memory()`函数，该函数探测了当前硬件物理内存的可用大小，由此计算出物理页面数量，分别记录到全局变量`memsize`和`npage`中，这样我们就对物理内存有了一个大致的掌握。
+首先，执行`mips_detect_memory()`函数，该函数探测了当前硬件物理内存的可用大小，由此计算出物理页面数量，分别记录到全局变量`memsize`和`npage`中（记住这两个变量的意义，后面我们会用到），这样我们就对物理内存有了一个大致的掌握。
 
 随后，开始建立内存管理机制。目前，页式管理机制还未建立起来，我们需要一些其他的数据结构来暂时管理内存。在`mips_vm_init()`函数中，我们看到功能代码只有一行：调用了一个叫alloc的类似内存分配函数，赋值给了指向`struct Page`结构的指针类型变量`pages`。这是一个结构数组的首地址，这个结构体也是链式物理内存管理的关键。
 
-前面提到，物理内存被我们分成了许多固定大小的页面，所谓链表法当然不是直接将这些页面串联起来，而是创建了这个结构体数组pages，每一个成员都是一个`struct Page`类型，它们和所有的物理页面一一对应，这些结构所在的内存空间和它所管理的内存空间也不是同一片内存。在`mips_vm_init()`函数中，正是完成了`struct Page`结构体数组的
+前面提到，物理内存被我们分成了许多固定大小的页面，所谓链表法当然不是直接将这些页面串联起来，**而是创建了这个结构体数组`pages`，每一个成员都是一个`struct Page`类型，它们和所有的物理页面一一对应，一个`struct Page`结构就管理一个物理页面**。`mips_vm_init()`函数完成了`struct Page`结构体数组的内存分配：
+
+```c
+void mips_vm_init() {
+        pages = (struct Page *)alloc(npage * sizeof(struct Page), BY2PG, 1);
+        printk("to memory %x for struct Pages.\n", freemem);
+        printk("pmap.c:\t mips vm init success\n");
+}
+```
+
+`alloc`是分配函数，返回分配空间的首地址（虚拟地址），`pages`于是成为`struct Page`结构数组的首地址，也是**第一个结构体的首地址**。`alloc`函数传入的第一个参数是分配空间的大小，可以看到为`npage * sizeof(struct Page)`，即`页面总数*页管理结构体大小`，也就是所有的`struct Page`所在的内存空间。
+
+现在知道了用什么数据结构来管理物理页面，那么，一个特定的`struct Page`是如何和和一个特定的物理页的内存地址对应起来的呢？也就是说，我们如何通过Page结构体的信息知道它管理的是哪个物理页面呢？实验中，`include/pmap.h`文件里为我们提供了**Page结构体地址**和**物理页首地址**之间相互转换的函数：
+
+* `static inline u_long page2pa(struct Page *pp)`：传入Page结构体地址，返回物理页首地址（物理地址）。
+
+* `static inline struct Page *pa2page(u_long pa)`：传入物理页首地址（物理地址），返回Page结构体首地址。
+
+* `static inline u_long page2kva(struct Page *pp)`：传入Page结构体地址，返回物理页首地址对应的虚拟地址。
+
+<font color=red>注：`page2pa`和`page2kva`区别只在于后者在前者基础上调用了一次`KADDR`，此宏定义于`include/mmu.h`，作用是将**kseg0**区的物理地址转换成对应的虚拟地址，由于是连续映射，它的操作只是简单地将物理地址延展至32位并在最高位设置为1，和它对应的是宏`PADDR`，它将**kseg0**虚拟地址转换成物理地址，只是将最高位设置位0。这就能和我们之前所说的**kseg0**区的虚拟地址和物理地址映射解释通了。</font>
+
+所以，假如我们现在能操作一个`struct Page`类型的结构体变量`manage_page`，就可以通过调用`page2pa(&manage_page)`得到它管理的物理页的首地址，或通过调用`page2kva(&manage_page)`得到它管理的物理页首地址对应的虚拟地址。
+
 
 
 ### 题目解析
