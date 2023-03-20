@@ -8,7 +8,7 @@
 
  **ELF**(Executable and Linkable Format)是一种文件格式，看名字就知道是可执行文件和可链接文件的格式，关于ELF格式的详细介绍移步指导书或者stfw。  
 
- 一个还行的[ELF文件初步讲解](https://blog.csdn.net/daide2012/article/details/73065204)
+ 一个还行的[ELF文件讲解](https://blog.csdn.net/lin___/article/details/104077452?utm_source=app&app_version=5.15.0&code=app_1562916241&uLinkId=usr1mkqgl919blen)
 
  >可以使用file filename命令来查看文件类型
 
@@ -73,7 +73,7 @@ typedef struct {
         Elf32_Word sh_link;      /* Section link */
         Elf32_Word sh_info;      /* Section extra info */
         Elf32_Word sh_addralign; /* Section alignment */
-        Elf32_Word sh_entsize;   /* 节头表表项大小*/
+        Elf32_Word sh_entsize;   /* 某些节区中包含固定大小的项目，如符号表。对于这类节区，此成员给出每个表项的长度字节数。*/
 } Elf32_Shdr;
 ```
 
@@ -138,7 +138,7 @@ int readelf(const void *binary, size_t size) {
 
 4.按地址顺序输出每一节的节地址，注意**循环增加的变量**是const void*类型的地址值，表示一个表项的地址，按字节寻址，因此每轮的**循环增量**是节头表表项大小
 
->第四点注意节头表表项大小和节大小的区别。
+>第四点注意节头表表项大小和节大小的区别。节头表项大小就是一个上述一个`Elf32_Shdr`结构体的大小（该结构体记录了一个节的有关信息），是ELF头成员`e_shentsize`的值，而节大小指节头表项结构体所记录信息的一个具体的节的大小（单位字节），是`Elf32_Shdr`中成员`sh_size`的值。另外，也要注意区分`ehdr->e_shentsize`和`shdr->sh_entsize`的区别，在上面的各头表结构代码注释中解释了区别。
 
 综上，给出两个部分填空代码：
 ```c
